@@ -25,7 +25,9 @@ enum Token {
     Comma,
     Dollar,
     Equals,
-    QuotedString(String)
+    QuotedString(String),
+    Plus,
+    Minus
 }
 
 #[derive(Debug)]
@@ -65,6 +67,8 @@ fn lex(iterator: &mut Peekable<Chars>) -> Result<Vec<Token>, LexError> {
             },
             '=' => result.push(Token::Equals),
             ',' => result.push(Token::Comma),
+            '+' => result.push(Token::Plus),
+            '-' => result.push(Token::Minus),
             ch @ '0'..='9' |
             ch @ 'A'..='Z' |
             ch @ 'a'..='z' |
@@ -202,6 +206,46 @@ mod tests {
         assert_eq!(Token::Comma, result[2]);
         assert_eq!(Token::QuotedString(String::from("Test")), result[3]);
         assert_eq!(Token::Dollar, result[4]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lex_flags() -> Result<(), LexError> {
+        let mut chars = "$TX+B-C$".chars().peekable();
+        let result = lex(chars.borrow_mut())?;
+
+        assert_eq!(7, result.len());
+        assert_eq!(Token::Dollar, result[0]);
+        assert_eq!(Token::Literal(String::from("TX")), result[1]);
+        assert_eq!(Token::Plus, result[2]);
+        assert_eq!(Token::Literal(String::from("B")), result[3]);
+        assert_eq!(Token::Minus, result[4]);
+        assert_eq!(Token::Literal(String::from("C")), result[5]);
+        assert_eq!(Token::Dollar, result[6]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lex_all() -> Result<(), LexError> {
+        let mut chars = "$TX+B-C,\"Hello\",S=\"World!\"$".chars().peekable();
+        let result = lex(chars.borrow_mut())?;
+
+        assert_eq!(13, result.len());
+        assert_eq!(Token::Dollar, result[0]);
+        assert_eq!(Token::Literal(String::from("TX")), result[1]);
+        assert_eq!(Token::Plus, result[2]);
+        assert_eq!(Token::Literal(String::from("B")), result[3]);
+        assert_eq!(Token::Minus, result[4]);
+        assert_eq!(Token::Literal(String::from("C")), result[5]);
+        assert_eq!(Token::Comma, result[6]);
+        assert_eq!(Token::QuotedString(String::from("Hello")), result[7]);
+        assert_eq!(Token::Comma, result[8]);
+        assert_eq!(Token::Literal(String::from("S")), result[9]);
+        assert_eq!(Token::Equals, result[10]);
+        assert_eq!(Token::QuotedString(String::from("World!")), result[11]);
+        assert_eq!(Token::Dollar, result[12]);
 
         Ok(())
     }
