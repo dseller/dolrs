@@ -31,6 +31,6 @@ fn main() {
 
 
     // let entries = parse("Hello World! $CL$ $FG,RED$ What's up?");
-    let entries = parse("Hello World! $CL$ $TX+CX$ What's up?");
+    let entries = parse("Hello World! $CL$ $TX+CX,A=C,B=X$ What's up?");
     println!("{:?}", entries);
 }

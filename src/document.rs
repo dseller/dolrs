@@ -6,13 +6,13 @@ pub enum DocumentEntry {
     Clear
 }*/
 
-use crate::parser::{Flag, Flags};
+use crate::parser::{Flag, Flags, Arguments};
 
 #[derive(Debug,PartialEq)]
 pub enum DocumentEntry {
-    Clear(Flags),
-    Text(Flags),
-    Foreground(Flags)
+    Clear(Flags, Arguments),
+    Text(Flags, Arguments),
+    Foreground(Flags, Arguments)
 }
 
 #[derive(Debug)]
@@ -21,11 +21,11 @@ pub enum DocumentError {
 }
 
 impl DocumentEntry {
-    pub fn new(cmd: &str, flags: Flags) -> Result<Self, DocumentError> {
+    pub fn new(cmd: &str, flags: Flags, args: Arguments) -> Result<Self, DocumentError> {
         match cmd {
-            "CL" => Ok(DocumentEntry::Clear(flags)),
-            "TX" => Ok(DocumentEntry::Text(flags)),
-            "FG" => Ok(DocumentEntry::Foreground(flags)),
+            "CL" => Ok(DocumentEntry::Clear(flags, args)),
+            "TX" => Ok(DocumentEntry::Text(flags, args)),
+            "FG" => Ok(DocumentEntry::Foreground(flags, args)),
             _ => Err(DocumentError::UnrecognizedCommand(String::from(cmd)))
         }
     }

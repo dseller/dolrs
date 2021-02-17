@@ -6,6 +6,7 @@ use std::iter::Peekable;
 use crate::parser::Token::Comma;
 use crate::parser::LexError::{UnexpectedCharacter, UnexpectedEndOfStream, DollarExpected};
 use crate::parser::ParseError::{ExpectedTokenError, UnexpectedTokenError};
+use std::collections::HashMap;
 
 peg::parser!{
     grammar doldoc() for str {
@@ -18,8 +19,14 @@ peg::parser!{
         rule flag_list() -> Vec<Flag>
             = f:flag()* { f }
 
+        rule arg() -> Argument
+            = "," key:$(['A'..='Z']+)? "="? value:$(['A'..='Z']+) { Argument::new(key, value) }
+
+        rule arg_list() -> Vec<Argument>
+            = a:arg()* { a }
+
         pub rule command() -> Result<DocumentEntry, DocumentError>
-            = "$" cmd:literal() flags:flag_list() "$" { DocumentEntry::new(cmd.as_str(), Flags::new(flags)) }
+            = "$" cmd:literal() flags:flag_list() args:arg_list() "$" { DocumentEntry::new(cmd.as_str(), Flags::new(flags), Arguments::new(args)) }
     }
 }
 
@@ -55,6 +62,42 @@ impl Flags {
             flags: Vec::new()
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Argument {
+    key: Option<String>,
+    value: String
+}
+
+impl Argument {
+    pub fn new(key: Option<&str>, value: &str) -> Self {
+        Argument {
+            key: key.map(|s| String::from(s)),
+            value: String::from(value)
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Arguments {
+    values: Vec<Argument>
+}
+
+impl Arguments {
+    pub fn new(values: Vec<Argument>) -> Self {
+        Arguments {
+            values
+        }
+    }
+
+    pub fn empty() -> Self {
+        Arguments::new(Vec::new())
+    }
+
+    /*fn get(&self, key: &str) -> Option<&Argument> {
+        self.values.iter().find(|arg| arg.key == key)
+    }*/
 }
 
 #[derive(Debug)]
@@ -189,7 +232,7 @@ fn read_text(iterator: &mut Peekable<Chars>) -> Result<DocumentEntry, ParseError
         str.push(ch);
     }
 
-    Ok(Text(Flags::empty()))
+    Ok(Text(Flags::empty(), Arguments::empty()))
 }
 
 pub fn parse(str: &str) -> Result<Vec<DocumentEntry>, ParseError> {
@@ -214,7 +257,6 @@ pub fn parse(str: &str) -> Result<Vec<DocumentEntry>, ParseError> {
             // Skip last dollar.
             iterator.by_ref().next();
 
-            println!("{:?}", buffer);
             let command = doldoc::command(format!("${}$", buffer).as_str());
             println!("{:?}", command);
         } else {
@@ -228,6 +270,30 @@ pub fn parse(str: &str) -> Result<Vec<DocumentEntry>, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn test_parses_plus_flag() {
+        let result = doldoc::command("$CL+X$").unwrap().unwrap();
+
+        assert_eq!(result, DocumentEntry::Clear(Flags::new(vec![Flag::new("+", "X")]), Arguments::empty()));
+    }
+
+    #[test]
+    fn test_parses_minus_flag() {
+        let result = doldoc::command("$CL-Y$").unwrap().unwrap();
+
+        assert_eq!(result, DocumentEntry::Clear(Flags::new(vec![Flag::new("-", "Y")]), Arguments::empty()));
+    }
+
+    #[test]
+    fn test_parses_multiple_flags() {
+        let result = doldoc::command("$CL+X-Y$").unwrap().unwrap();
+
+        assert_eq!(result, DocumentEntry::Clear(Flags::new(
+            vec![Flag::new("+", "X"), Flag::new("-", "Y")]),
+            Arguments::empty()));
+    }
 
     #[test]
     fn test_parse_text() -> Result<(), ParseError> {
