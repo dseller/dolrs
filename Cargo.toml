@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 log = "0.4.11"
 simple_logger = "1.9.0"
+minifb = "0.19.1"
+peg = "0.6.3"

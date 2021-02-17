@@ -1,14 +1,67 @@
-use crate::document::{DocumentEntry, DocumentError};
+use crate::document::{DocumentEntry, DocumentError, Document};
 use std::str::Chars;
-use std::borrow::{BorrowMut};
+use std::borrow::{BorrowMut, Borrow};
 use crate::document::DocumentEntry::Text;
 use std::iter::Peekable;
 use crate::parser::Token::Comma;
 use crate::parser::LexError::{UnexpectedCharacter, UnexpectedEndOfStream, DollarExpected};
+use crate::parser::ParseError::{ExpectedTokenError, UnexpectedTokenError};
+
+peg::parser!{
+    grammar doldoc() for str {
+        rule literal() -> String
+            = s:$(['A'..='Z']+) { String::from(s) }
+
+        rule flag() -> Flag
+            = status:$(['+'|'-']) code:$(['A'..='Z']+) { Flag::new(status, code) }
+
+        rule flag_list() -> Vec<Flag>
+            = f:flag()* { f }
+
+        pub rule command() -> Result<DocumentEntry, DocumentError>
+            = "$" cmd:literal() flags:flag_list() "$" { DocumentEntry::new(cmd.as_str(), Flags::new(flags)) }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Flag {
+    status: bool,
+    code: String
+}
+
+impl Flag {
+    pub fn new(status: &str, code: &str) -> Self {
+        Flag {
+            status: status == "+",
+            code: String::from(code)
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Flags {
+    flags: Vec<Flag>
+}
+
+impl Flags {
+    pub fn new(flags: Vec<Flag>) -> Self {
+        Flags {
+            flags
+        }
+    }
+
+    pub fn empty() -> Self {
+        Flags {
+            flags: Vec::new()
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum ParseError {
     GeneralError,
+    ExpectedTokenError(Token),
+    UnexpectedTokenError(Token),
     UnexpectedEOF,
     DocError(DocumentError)
 }
@@ -19,8 +72,8 @@ impl From<DocumentError> for ParseError {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum Token {
+#[derive(Debug, PartialEq, Clone)]
+pub enum Token {
     Literal(String),
     Comma,
     Dollar,
@@ -136,7 +189,7 @@ fn read_text(iterator: &mut Peekable<Chars>) -> Result<DocumentEntry, ParseError
         str.push(ch);
     }
 
-    Ok(Text(str))
+    Ok(Text(Flags::empty()))
 }
 
 pub fn parse(str: &str) -> Result<Vec<DocumentEntry>, ParseError> {
@@ -150,9 +203,20 @@ pub fn parse(str: &str) -> Result<Vec<DocumentEntry>, ParseError> {
         };
 
         if *ch == '$' {
-            //result.push(parse_command(iterator.borrow_mut())?);
+            // Skip first dollar.
+            iterator.next();
 
-            println!("{:?}", lex(iterator.borrow_mut()));
+            let mut buffer = String::new();
+            while *iterator.peek().unwrap() != '$' {
+                buffer.push(iterator.by_ref().next().unwrap());
+            }
+
+            // Skip last dollar.
+            iterator.by_ref().next();
+
+            println!("{:?}", buffer);
+            let command = doldoc::command(format!("${}$", buffer).as_str());
+            println!("{:?}", command);
         } else {
             result.push(read_text(iterator.borrow_mut())?);
         }
@@ -164,6 +228,28 @@ pub fn parse(str: &str) -> Result<Vec<DocumentEntry>, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_text() -> Result<(), ParseError> {
+        let result = parse("Hello World!")?;
+
+        assert_eq!(1, result.len());
+        // assert_eq!(DocumentEntry::Text(String::from("Hello World!")), *result.get(0).unwrap());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_text_with_dollars() -> Result<(), ParseError> {
+        let result = parse("That costs $$50.00!")?;
+
+        assert_eq!(3, result.len());
+        /*assert_eq!(DocumentEntry::Text(String::from("That costs ")), *result.get(0).unwrap());
+        assert_eq!(DocumentEntry::Text(String::from("$")), *result.get(1).unwrap());
+        assert_eq!(DocumentEntry::Text(String::from("50.00!")), *result.get(2).unwrap());*/
+
+        Ok(())
+    }
 
     #[test]
     fn test_lex_literals() -> Result<(), LexError> {
